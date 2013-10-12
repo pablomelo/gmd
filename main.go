@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -18,6 +17,11 @@ func main() {
 	)
 	flag.Parse()
 
+	p, err := newPlatform()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	listenAddr, err := net.ResolveUDPAddr("udp", *listen)
 	if err != nil {
 		log.Fatal(err)
@@ -28,11 +32,9 @@ func main() {
 	}
 
 	defer time.Sleep(100 * time.Millisecond)
-
 	quit := make(chan struct{})
 	defer close(quit)
 	in := make(chan string)
-	p := newPlatform()
 
 	go rd(in, conn, quit)
 	go wr(p, in, quit)
@@ -70,7 +72,7 @@ func wr(p *platform, in chan string, quit chan struct{}) {
 	for {
 		select {
 		case s := <-in:
-			log.Printf("wr: %s %v", strings.TrimSpace(s), []byte(s))
+			p.parse(s)
 
 		case <-quit:
 			return

@@ -33,6 +33,11 @@ func newPlatform() (*platform, error) {
 	}, nil
 }
 
+func (p *platform) stop() {
+	p.mixer.stop()
+	log.Printf("platform: stopped")
+}
+
 func (p *platform) parse(input string) {
 	log.Printf("platform: parse: %s", input)
 	input = strings.TrimSpace(input)

@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+const (
+	cycle = 50 * time.Millisecond
+)
+
 func main() {
 	log.SetFlags(log.Lshortfile)
 	var (
@@ -21,6 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer p.stop()
 
 	listenAddr, err := net.ResolveUDPAddr("udp", *listen)
 	if err != nil {
@@ -31,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	defer time.Sleep(100 * time.Millisecond)
+	defer time.Sleep(2 * cycle)
 	quit := make(chan struct{})
 	defer close(quit)
 	in := make(chan string)
@@ -53,7 +58,7 @@ func rd(out chan string, conn *net.UDPConn, quit chan struct{}) {
 
 		default:
 			b := make([]byte, maxSize)
-			conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			conn.SetReadDeadline(time.Now().Add(cycle))
 			n, remoteAddr, err := conn.ReadFrom(b)
 			if err != nil {
 				continue

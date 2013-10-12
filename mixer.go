@@ -66,24 +66,36 @@ func (m *mixer) loop() {
 	for {
 		select {
 		case c := <-m.audio:
+			log.Printf("mixer: audio")
 			c <- mux(incoming, m.gain)
 
 		case s := <-m.connections:
+			log.Printf("mixer: connections")
 			incoming[s.ID()] = s.audioOut()
 
 		case s := <-m.disconnections:
+			log.Printf("mixer: disconnections")
 			delete(incoming, s.ID())
 
 		case q := <-m.quit:
+			log.Printf("mixer: quit")
+			defer log.Printf("mixer: done")
 			if m.stream == nil {
 				panic("mixer: double-stop")
 			}
-			if err := m.stream.Stop(); err != nil {
-				log.Printf("mixer: stop: %s", err)
-			}
+
+			// log.Printf("mixer: stream stopping...")
+			// if err := m.stream.Stop(); err != nil {
+			// 	log.Printf("mixer: stream stop: %s", err)
+			// }
+			// log.Printf("mixer: stream stopped")
+
+			log.Printf("mixer: stream closing...")
 			if err := m.stream.Close(); err != nil {
-				log.Printf("mixer: close: %s", err)
+				log.Printf("mixer: stream close: %s", err)
 			}
+			log.Printf("mixer: stream closed")
+
 			m.stream = nil
 			close(q)
 			return

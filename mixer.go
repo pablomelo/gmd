@@ -69,16 +69,16 @@ func (m *mixer) loop() {
 	for {
 		select {
 		case c := <-m.audio:
-			log.Printf("mixer: audio")
+			//log.Printf("mixer: audio")
 			c <- mux(incoming, m.gain)
 
 		case s := <-m.connections:
-			log.Printf("mixer: connections")
+			log.Printf("mixer: connections: %s", s.ID())
 			active[s.ID()] = s
 			incoming[s.ID()] = s.subscribeAudio(m.ID())
 
 		case s := <-m.disconnections:
-			log.Printf("mixer: disconnections")
+			log.Printf("mixer: disconnections: %s", s.ID())
 			delete(incoming, s.ID())
 			if _, ok := active[s.ID()]; !ok {
 				panic(fmt.Sprintf("mixer disconnection from inactive sender '%s'", s.ID()))

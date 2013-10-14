@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/peterbourgon/field"
 	"log"
 	"reflect"
+
+	"github.com/peterbourgon/field"
 )
 
 // demoGenerator will output a sine wave at 440Hz.
@@ -35,31 +36,32 @@ func (g *demoGenerator) stop() {
 func (g *demoGenerator) loop() {
 	defer log.Printf("%s: done", g.ID())
 
-	gen := make(chan []float32)
-	makeSoundQuit := make(chan chan struct{})
-	go makeSound(gen, sine, 440.0, makeSoundQuit)
+	var phase float32
+	buf := nextBuffer(sine, 440.0, &phase)
+	demux := make(chan []float32)
+	// TODO something that forwards input on demux to all output chans
+	// but *only* when at least one of the output chans is ready to recv
 
 	for {
 		select {
-		case buffer := <-gen:
-			g.demux(g.output, buffer)
+		case demux <- buf:
+			buf = nextBuffer(sine, 440.0, &phase)
 
 		case req := <-g.audioSubscriptions.subscriptions:
+			log.Printf("%s: subscription: %s", g.ID(), req.id)
 			if _, ok := g.output[req.id]; ok {
 				panic(fmt.Sprintf("%s: double-subscribe of '%s'", g.ID(), req.id))
 			}
 			g.output[req.id] = req.c
 
 		case id := <-g.audioSubscriptions.unsubscriptions:
+			log.Printf("%s: unsubscription: %s", g.ID(), id)
 			if _, ok := g.output[id]; !ok {
 				panic(fmt.Sprintf("%s: impossible unsubscribe of '%s'", g.ID(), id))
 			}
 			delete(g.output, id)
 
 		case q := <-g.quit:
-			qq := make(chan struct{})
-			makeSoundQuit <- qq
-			<-qq
 			close(q)
 			return
 		}
@@ -117,6 +119,7 @@ type subscriptionRequest struct {
 }
 
 func (s audioSubscriptions) subscribeAudio(id string) chan []float32 {
+	log.Printf("audioSubscriptions: subscribeAudio(%s)", id)
 	c := make(chan []float32)
 	req := subscriptionRequest{id, c}
 	s.subscriptions <- req
@@ -124,6 +127,7 @@ func (s audioSubscriptions) subscribeAudio(id string) chan []float32 {
 }
 
 func (s audioSubscriptions) unsubscribeAudio(id string) {
+	log.Printf("audioSubscriptions: unsubscribeAudio(%s)", id)
 	s.unsubscriptions <- id
 }
 

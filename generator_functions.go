@@ -56,3 +56,11 @@ func square(x float32) float32 {
 	}
 	return 0.0
 }
+
+func nextBuffer(f generatorFunction, hz float32, phase *float32) []float32 {
+	buf := make([]float32, bufSz)
+	for i := 0; i < bufSz; i++ {
+		buf[i] = nextGeneratorFunctionValue(f, hz, phase)
+	}
+	return buf
+}

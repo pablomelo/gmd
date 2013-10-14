@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"code.google.com/p/portaudio-go/portaudio"
@@ -20,7 +21,8 @@ type identifier interface {
 
 type audioSender interface {
 	identifier
-	audioOut() <-chan []float32
+	subscribeAudio(string) <-chan []float32
+	unsubscribeAudio(string)
 }
 
 type mixer struct {
@@ -63,6 +65,7 @@ func (m *mixer) stop() {
 
 func (m *mixer) loop() {
 	incoming := map[string]<-chan []float32{}
+	active := map[string]audioSender{}
 	for {
 		select {
 		case c := <-m.audio:
@@ -71,11 +74,17 @@ func (m *mixer) loop() {
 
 		case s := <-m.connections:
 			log.Printf("mixer: connections")
-			incoming[s.ID()] = s.audioOut()
+			active[s.ID()] = s
+			incoming[s.ID()] = s.subscribeAudio(m.ID())
 
 		case s := <-m.disconnections:
 			log.Printf("mixer: disconnections")
 			delete(incoming, s.ID())
+			if _, ok := active[s.ID()]; !ok {
+				panic(fmt.Sprintf("mixer disconnection from inactive sender '%s'", s.ID()))
+			}
+			active[s.ID()].unsubscribeAudio(m.ID())
+			delete(active, s.ID())
 
 		case q := <-m.quit:
 			log.Printf("mixer: quit")

@@ -92,7 +92,7 @@ func (p *platform) parse(input string) {
 			return
 		}
 
-		if err := p.add(n); err != nil {
+		if err := p.field.AddNode(n); err != nil {
 			log.Printf("%s: %v", input, err)
 			if s, ok := n.(stopper); ok {
 				s.stop()
@@ -106,7 +106,11 @@ func (p *platform) parse(input string) {
 			log.Printf("%s: not right args", input)
 			return
 		}
-		if err := p.remove(toks[1]); err != nil {
+		if toks[1] == "mixer" || toks[1] == "clock" {
+			log.Printf("%s: no", input)
+			return
+		}
+		if err := p.field.RemoveNode(toks[1]); err != nil {
 			log.Printf("%s: %s", input, err)
 			return
 		}
@@ -117,16 +121,22 @@ func (p *platform) parse(input string) {
 			log.Printf("%s: not right args", input)
 			return
 		}
-		err := p.connect(toks[1], toks[2])
-		log.Printf("%s: %v", input, err)
+		if err := p.field.AddEdge(toks[1], toks[2]); err != nil {
+			log.Printf("%s: %s", input, err)
+			return
+		}
+		log.Printf("%s: OK", input)
 
 	case "disconnect", "disconn", "discon", "d":
 		if len(toks) != 3 {
 			log.Printf("%s: not right args", input)
 			return
 		}
-		err := p.disconnect(toks[1], toks[2])
-		log.Printf("%s: %v", input, err)
+		if err := p.field.RemoveEdge(toks[1], toks[2]); err != nil {
+			log.Printf("%s: %s", input, err)
+			return
+		}
+		log.Printf("%s: OK", input)
 
 	case "send", "s":
 		if len(toks) < 3 {
@@ -150,28 +160,4 @@ func (p *platform) parse(input string) {
 	default:
 		log.Printf("%s: aroo", input)
 	}
-}
-
-func (p *platform) add(n field.Node) error {
-	return p.field.AddNode(n)
-}
-
-func (p *platform) remove(id string) error {
-	if id == "mixer" || id == "clock" {
-		return errNo
-	}
-	return p.field.RemoveNode(id)
-}
-
-func (p *platform) connect(srcID, dstID string) error {
-	if srcID == "mixer" || srcID == "clock" {
-		return errNo
-	}
-	log.Printf("platform: connect: %s to %s", srcID, dstID)
-	return p.field.AddEdge(srcID, dstID)
-}
-
-func (p *platform) disconnect(srcID, dstID string) error {
-	log.Printf("platform: disconnect: %s to %s", srcID, dstID)
-	return p.field.RemoveEdge(srcID, dstID)
 }

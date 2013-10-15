@@ -151,22 +151,8 @@ func mux(incoming []<-chan []float32, gain float32) ([]<-chan []float32, []float
 	return survivors, out
 }
 
-func (m *mixer) ID() string { return "mixer" }
-
-func (m *mixer) Connect(n field.Node) error {
-	log.Printf("mixer: Connect (rejected): %s", n.ID())
-	return errNo
-}
-
-func (m *mixer) Connection(n field.Node) error {
-	log.Printf("mixer: Connection: %s (ignored)", n.ID())
-	return nil
-}
-
-func (m *mixer) Disconnect(n field.Node) {
-	log.Printf("mixer: Disconnect (ignored): %s", n.ID())
-}
-
-func (m *mixer) Disconnection(n field.Node) {
-	log.Printf("mixer: Disconnection: %s (ignored)", n.ID())
-}
+func (m *mixer) ID() string                    { return "mixer" }
+func (m *mixer) Connect(n field.Node) error    { return errNo }
+func (m *mixer) Connection(n field.Node) error { return nil } // upstream calls our receive()
+func (m *mixer) Disconnect(n field.Node)       {}
+func (m *mixer) Disconnection(n field.Node)    {}

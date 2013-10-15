@@ -116,38 +116,3 @@ type connectRequest struct {
 	r audioReceiver
 	e chan error
 }
-
-/*
-// audioSubscriptions satisfies audioSender methods by pushing requests through
-// the subscriptions and unsubscriptions channels. It's designed to be embedded
-// in a generator structure with a loop method that selects over the channels.
-type audioSubscriptions struct {
-	subscriptions   chan subscriptionRequest
-	unsubscriptions chan string
-}
-
-func makeAudioSubscriptions() audioSubscriptions {
-	return audioSubscriptions{
-		subscriptions:   make(chan subscriptionRequest),
-		unsubscriptions: make(chan string),
-	}
-}
-
-type subscriptionRequest struct {
-	id string
-	c  chan []float32
-}
-
-func (s audioSubscriptions) subscribeAudio(id string) <-chan []float32 {
-	log.Printf("audioSubscriptions: subscribeAudio(%s)", id)
-	c := make(chan []float32)
-	req := subscriptionRequest{id, c}
-	s.subscriptions <- req
-	return c
-}
-
-func (s audioSubscriptions) unsubscribeAudio(id string) {
-	log.Printf("audioSubscriptions: unsubscribeAudio(%s)", id)
-	s.unsubscriptions <- id
-}
-*/

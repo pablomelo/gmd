@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/peterbourgon/field"
@@ -12,25 +13,34 @@ var (
 	errNo = errors.New("no")
 )
 
+type parser interface {
+	parse(input string)
+}
+
 // platform holds the music objects.
 type platform struct {
-	mixer *mixer
-	field *field.Field
+	mixer  *mixer
+	field  *field.Field
+	clock  *clock
+	buffer *commandBuffer
 }
 
 func newPlatform() (*platform, error) {
-	m, err := newMixer()
+	p := &platform{}
+
+	var err error
+	p.mixer, err = newMixer()
 	if err != nil {
 		return nil, err
 	}
 
-	f := field.New()
-	f.AddNode(m) // a platform always has a permanent mixer
+	p.field = field.New()
+	p.field.AddNode(p.mixer) // a platform always has a permanent mixer
 
-	return &platform{
-		mixer: m,
-		field: f,
-	}, nil
+	p.clock = newClock(120.0)
+	p.buffer = newCommandBuffer(p.clock, p)
+
+	return p, nil
 }
 
 func (p *platform) stop() {
@@ -47,13 +57,27 @@ func (p *platform) parse(input string) {
 	}
 
 	switch toks[0] {
+	case "%":
+		if len(toks) < 3 {
+			log.Printf("%s: need moar", input)
+			return
+		}
+		modulo, err := strconv.ParseUint(toks[1], 10, 64)
+		if err != nil {
+			log.Printf("%s: %s", input, err)
+			return
+		}
+		command := strings.Join(toks[2:], " ")
+		p.buffer.queue(modulo, command)
+		log.Printf("queued %%%d: %s", modulo, command)
+
 	case "add", "a":
 		if len(toks) != 3 {
-			log.Printf("err: %s: not right args", input)
+			log.Printf("%s: not right args", input)
 			return
 		}
 		if toks[2] == "" {
-			log.Printf("err: %s: empty name", input)
+			log.Printf("%s: empty name", input)
 			return
 		}
 
@@ -62,7 +86,7 @@ func (p *platform) parse(input string) {
 		case "demo":
 			n = newDemoGenerator(toks[2])
 		default:
-			log.Printf("err: %s: bad type", input)
+			log.Printf("%s: bad type", input)
 			return
 		}
 
@@ -77,18 +101,18 @@ func (p *platform) parse(input string) {
 
 	case "remove", "rm", "r", "del":
 		if len(toks) != 2 {
-			log.Printf("err: %s: not right args", input)
+			log.Printf("%s: not right args", input)
 			return
 		}
 		if err := p.remove(toks[1]); err != nil {
-			log.Printf("err: %s: %s", input, err)
+			log.Printf("%s: %s", input, err)
 			return
 		}
 		log.Printf("%s: OK, removed", input)
 
 	case "connect", "conn", "c":
 		if len(toks) != 3 {
-			log.Printf("err: %s: not right args", input)
+			log.Printf("%s: not right args", input)
 			return
 		}
 		err := p.connect(toks[1], toks[2])
@@ -96,14 +120,26 @@ func (p *platform) parse(input string) {
 
 	case "disconnect", "disconn", "discon", "d":
 		if len(toks) != 3 {
-			log.Printf("err: %s: not right args", input)
+			log.Printf("%s: not right args", input)
 			return
 		}
 		err := p.disconnect(toks[1], toks[2])
 		log.Printf("%s: %v", input, err)
 
+	case "bpm":
+		if len(toks) != 2 {
+			log.Printf("%s: not right args", input)
+			return
+		}
+		bpm, err := strconv.ParseFloat(toks[1], 32)
+		if err != nil {
+			log.Printf("%s: %s", input, err)
+			return
+		}
+		p.clock.bpm(float32(bpm))
+
 	default:
-		log.Printf("err: %s: aroo", input)
+		log.Printf("%s: aroo", input)
 	}
 }
 

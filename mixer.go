@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"code.google.com/p/portaudio-go/portaudio"
@@ -9,39 +8,36 @@ import (
 )
 
 const (
-	iChan = 1
-	oChan = 1
-	sRate = 44100
-	bufSz = 1024
+	iChan = 1     // portaudio input channels
+	oChan = 1     // portaudio output channels
+	sRate = 44100 // audio sample rate
+	bufSz = 1024  // size of buffer in each portaudio ProcessAudio call
 )
 
 type identifier interface {
 	ID() string
 }
 
-type audioSender interface {
+type audioReceiver interface {
 	identifier
-	subscribeAudio(string) <-chan []float32
-	unsubscribeAudio(string)
+	receive(audioOut <-chan []float32)
 }
 
 type mixer struct {
-	stream         *portaudio.Stream
-	gain           float32
-	audio          chan chan []float32
-	connections    chan audioSender
-	disconnections chan audioSender
-	quit           chan chan struct{}
+	stream   *portaudio.Stream
+	gain     float32
+	incoming chan (<-chan []float32) // connections from upstream
+	audio    chan chan []float32
+	quit     chan chan struct{}
 }
 
 func newMixer() (*mixer, error) {
 	m := &mixer{
-		stream:         nil,
-		gain:           0.1, // TODO make mutable
-		audio:          make(chan chan []float32),
-		connections:    make(chan audioSender),
-		disconnections: make(chan audioSender),
-		quit:           make(chan chan struct{}),
+		stream:   nil,
+		gain:     0.1, // TODO make mutable
+		incoming: make(chan (<-chan []float32)),
+		audio:    make(chan chan []float32),
+		quit:     make(chan chan struct{}),
 	}
 
 	stream, err := portaudio.OpenDefaultStream(iChan, oChan, sRate, bufSz, m)
@@ -51,6 +47,7 @@ func newMixer() (*mixer, error) {
 	if err := stream.Start(); err != nil {
 		return nil, err
 	}
+	log.Printf("mixer: stream started")
 	m.stream = stream
 
 	go m.loop()
@@ -64,27 +61,16 @@ func (m *mixer) stop() {
 }
 
 func (m *mixer) loop() {
-	incoming := map[string]<-chan []float32{}
-	active := map[string]audioSender{}
+	incoming := []<-chan []float32{}
 	for {
 		select {
+		case c := <-m.incoming:
+			incoming = append(incoming, c)
+
 		case c := <-m.audio:
-			//log.Printf("mixer: audio")
-			c <- mux(incoming, m.gain)
-
-		case s := <-m.connections:
-			log.Printf("mixer: connections: %s", s.ID())
-			active[s.ID()] = s
-			incoming[s.ID()] = s.subscribeAudio(m.ID())
-
-		case s := <-m.disconnections:
-			log.Printf("mixer: disconnections: %s", s.ID())
-			delete(incoming, s.ID())
-			if _, ok := active[s.ID()]; !ok {
-				panic(fmt.Sprintf("mixer disconnection from inactive sender '%s'", s.ID()))
-			}
-			active[s.ID()].unsubscribeAudio(m.ID())
-			delete(active, s.ID())
+			var buf []float32
+			incoming, buf = mux(incoming, m.gain)
+			c <- buf
 
 		case q := <-m.quit:
 			log.Printf("mixer: quit")
@@ -112,49 +98,71 @@ func (m *mixer) loop() {
 	}
 }
 
-func mux(m map[string]<-chan []float32, gain float32) []float32 {
+func (m *mixer) ProcessAudio(in, out []float32) {
+	c := make(chan []float32)
+	m.audio <- c
+	buf := <-c
+	for i := 0; i < bufSz; i++ {
+		out[i] = buf[i]
+	}
+}
+
+// receive implements the audioReceiver interface.
+func (m *mixer) receive(audioOut <-chan []float32) {
+	m.incoming <- audioOut
+}
+
+var zeroBuf = make([]float32, 0.0)
+
+func mux(incoming []<-chan []float32, gain float32) ([]<-chan []float32, []float32) {
+	survivors := make([]<-chan []float32, 0, len(incoming))
 	out := make([]float32, bufSz)
-	for _, c := range m {
-		buf, ok := <-c
+	for _, c := range incoming {
+		var buf []float32
+		ok, timeout := true, false
+		select {
+		case buf, ok = <-c:
+			break
+		default:
+			timeout = true
+		}
 		if !ok {
-			buf = make([]float32, bufSz)
+			log.Printf("mixer: mux: ch %x closed, culling", c)
+			continue
+		}
+		if timeout {
+			log.Printf("mixer: mux: ch %x timeout, skipping", c)
+			buf = zeroBuf
 		}
 		if len(buf) != len(out) {
 			panic("bad buf sz") // TODO don't crash
 		}
+
+		survivors = append(survivors, c)
 		for i := range out {
 			out[i] += gain * buf[i]
 		}
 	}
-	return out
-}
-
-func (m *mixer) ProcessAudio(in, out []float32) {
-	c := make(chan []float32)
-	m.audio <- c
-	out = <-c
+	//log.Printf("mux: %d (first=%.2f) => %d", len(incoming), out[0], len(survivors))
+	return survivors, out
 }
 
 func (m *mixer) ID() string { return "mixer" }
 
-func (m *mixer) Connect(n field.Node) {
-	log.Printf("mixer: connect (ignored): %s", n.ID())
+func (m *mixer) Connect(n field.Node) error {
+	log.Printf("mixer: Connect (rejected): %s", n.ID())
+	return errNo
+}
+
+func (m *mixer) Connection(n field.Node) error {
+	log.Printf("mixer: Connection: %s (ignored)", n.ID())
+	return nil
 }
 
 func (m *mixer) Disconnect(n field.Node) {
-	log.Printf("mixer: disconnect (ignored): %s", n.ID())
-}
-
-func (m *mixer) Connection(n field.Node) {
-	log.Printf("mixer: connection: %s", n.ID())
-	if s, ok := n.(audioSender); ok {
-		m.connections <- s
-	}
+	log.Printf("mixer: Disconnect (ignored): %s", n.ID())
 }
 
 func (m *mixer) Disconnection(n field.Node) {
-	log.Printf("mixer: disconnection: %s", n.ID())
-	if s, ok := n.(audioSender); ok {
-		m.disconnections <- s
-	}
+	log.Printf("mixer: Disconnection: %s (ignored)", n.ID())
 }

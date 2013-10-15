@@ -16,7 +16,6 @@ var (
 type platform struct {
 	mixer *mixer
 	field *field.Field
-	regis map[string]field.Node
 }
 
 func newPlatform() (*platform, error) {
@@ -31,7 +30,6 @@ func newPlatform() (*platform, error) {
 	return &platform{
 		mixer: m,
 		field: f,
-		regis: map[string]field.Node{},
 	}, nil
 }
 
@@ -72,7 +70,6 @@ func (p *platform) parse(input string) {
 			log.Printf("%s: %v", input, err)
 			return
 		}
-		p.regis[n.ID()] = n
 		log.Printf("%s: OK, added", input)
 
 	case "remove", "rm", "r", "del":
@@ -80,16 +77,10 @@ func (p *platform) parse(input string) {
 			log.Printf("err: %s: not right args", input)
 			return
 		}
-		n, ok := p.regis[toks[1]]
-		if !ok {
-			log.Printf("err: %s: lost it", input)
-			return
-		}
-		if err := p.remove(n); err != nil {
+		if err := p.remove(toks[1]); err != nil {
 			log.Printf("err: %s: %s", input, err)
 			return
 		}
-		delete(p.regis, n.ID())
 		log.Printf("%s: OK, removed", input)
 
 	case "connect", "conn", "c":
@@ -97,16 +88,7 @@ func (p *platform) parse(input string) {
 			log.Printf("err: %s: not right args", input)
 			return
 		}
-		src, ok := p.regis[toks[1]]
-		if !ok {
-			log.Printf("err: %s: no src", input)
-			return
-		}
-		dst, ok := p.regis[toks[2]]
-		if !ok {
-			log.Printf("err: %s: no dst", input)
-		}
-		err := p.connect(src, dst)
+		err := p.connect(toks[1], toks[2])
 		log.Printf("%s: %v", input, err)
 
 	case "disconnect", "disconn", "discon", "d":
@@ -114,20 +96,11 @@ func (p *platform) parse(input string) {
 			log.Printf("err: %s: not right args", input)
 			return
 		}
-		src, ok := p.regis[toks[1]]
-		if !ok {
-			log.Printf("err: %s: no src", input)
-			return
-		}
-		dst, ok := p.regis[toks[2]]
-		if !ok {
-			log.Printf("err: %s: no dst", input)
-		}
-		err := p.disconnect(src, dst)
+		err := p.disconnect(toks[1], toks[2])
 		log.Printf("%s: %v", input, err)
 
 	default:
-		log.Printf("err: %s: wha", input)
+		log.Printf("err: %s: aroo", input)
 	}
 }
 
@@ -135,22 +108,22 @@ func (p *platform) add(n field.Node) error {
 	return p.field.AddNode(n)
 }
 
-func (p *platform) remove(n field.Node) error {
-	if n.ID() == "mixer" {
+func (p *platform) remove(id string) error {
+	if id == "mixer" {
 		return errNo
 	}
-	return p.field.RemoveNode(n)
+	return p.field.RemoveNode(id)
 }
 
-func (p *platform) connect(src, dst field.Node) error {
-	if src.ID() == "mixer" {
+func (p *platform) connect(srcID, dstID string) error {
+	if srcID == "mixer" {
 		return errNo
 	}
-	log.Printf("platform: connect: %s to %s", src.ID(), dst.ID())
-	return p.field.AddEdge(src, dst)
+	log.Printf("platform: connect: %s to %s", srcID, dstID)
+	return p.field.AddEdge(srcID, dstID)
 }
 
-func (p *platform) disconnect(src, dst field.Node) error {
-	log.Printf("platform: disconnect: %s to %s", src.ID(), dst.ID())
-	return p.field.RemoveEdge(src, dst)
+func (p *platform) disconnect(srcID, dstID string) error {
+	log.Printf("platform: disconnect: %s to %s", srcID, dstID)
+	return p.field.RemoveEdge(srcID, dstID)
 }

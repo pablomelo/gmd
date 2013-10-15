@@ -34,11 +34,12 @@ func newPlatform() (*platform, error) {
 		return nil, err
 	}
 
-	p.field = field.New()
-	p.field.AddNode(p.mixer) // a platform always has a permanent mixer
-
 	p.clock = newClock(120.0)
 	p.buffer = newCommandBuffer(p.clock, p)
+
+	p.field = field.New()
+	p.field.AddNode(p.mixer) // a platform always has a permanent mixer
+	p.field.AddNode(p.clock) // a platform always has a permanent clock
 
 	return p, nil
 }
@@ -127,17 +128,24 @@ func (p *platform) parse(input string) {
 		err := p.disconnect(toks[1], toks[2])
 		log.Printf("%s: %v", input, err)
 
-	case "bpm":
-		if len(toks) != 2 {
+	case "send", "s":
+		if len(toks) < 3 {
 			log.Printf("%s: not right args", input)
 			return
 		}
-		bpm, err := strconv.ParseFloat(toks[1], 32)
+		n, err := p.field.Get(toks[1])
 		if err != nil {
-			log.Printf("%s: %s", input, err)
+			log.Printf("%s: %s: %s", input, toks[1], err)
 			return
 		}
-		p.clock.bpm(float32(bpm))
+		p, ok := n.(parser)
+		if !ok {
+			log.Printf("%s: it can't parse commands", toks[1])
+			return
+		}
+		command := strings.Join(toks[2:], " ")
+		log.Printf("sending to %s: %s", toks[1], command)
+		p.parse(command)
 
 	default:
 		log.Printf("%s: aroo", input)
@@ -149,14 +157,14 @@ func (p *platform) add(n field.Node) error {
 }
 
 func (p *platform) remove(id string) error {
-	if id == "mixer" {
+	if id == "mixer" || id == "clock" {
 		return errNo
 	}
 	return p.field.RemoveNode(id)
 }
 
 func (p *platform) connect(srcID, dstID string) error {
-	if srcID == "mixer" {
+	if srcID == "mixer" || srcID == "clock" {
 		return errNo
 	}
 	log.Printf("platform: connect: %s to %s", srcID, dstID)

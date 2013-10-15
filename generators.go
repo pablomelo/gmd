@@ -11,7 +11,7 @@ import (
 type demoGenerator struct {
 	id          string
 	connects    chan connectRequest
-	disconnects chan connectRequest
+	disconnects chan string
 	connected   string
 	output      chan []float32
 	quit        chan chan struct{}
@@ -21,7 +21,7 @@ func newDemoGenerator(id string) *demoGenerator {
 	g := &demoGenerator{
 		id:          id,
 		connects:    make(chan connectRequest),
-		disconnects: make(chan connectRequest),
+		disconnects: make(chan string),
 		connected:   "",
 		output:      nil,
 		quit:        make(chan chan struct{}),
@@ -58,20 +58,19 @@ func (g *demoGenerator) loop() {
 			r.e <- nil
 			log.Printf("%s → %s", g.ID(), r.r.ID())
 
-		case r := <-g.disconnects:
+		case id := <-g.disconnects:
 			if g.output == nil {
-				r.e <- fmt.Errorf("%s not connected", g.ID())
+				log.Printf("%s: disconnect, but not connected", g.ID())
 				continue
 			}
-			if g.connected != r.r.ID() {
-				r.e <- fmt.Errorf("%s connected to %s, not %s (bug in field)", g.ID(), g.connected, r.r.ID())
+			if g.connected != id {
+				log.Printf("%s: connected to %s, not %s (bug in field)", g.ID(), g.connected, id)
 				continue
 			}
 			g.connected = ""
 			close(g.output)
 			g.output = nil
-			r.e <- nil
-			log.Printf("%s ✕ %s", g.ID(), r.r.ID())
+			log.Printf("%s ✕ %s", g.ID(), id)
 
 		case q := <-g.quit:
 			close(q)
@@ -93,14 +92,11 @@ func (g *demoGenerator) Connect(n field.Node) error {
 }
 
 func (g *demoGenerator) Disconnect(n field.Node) {
-	r, ok := n.(audioReceiver)
-	if !ok {
+	if _, ok := n.(audioReceiver); !ok {
 		log.Printf("%s not audioReceiver", n.ID())
 		return
 	}
-	req := connectRequest{r, make(chan error)}
-	g.disconnects <- req
-	<-req.e
+	g.disconnects <- n.ID()
 }
 
 func (g *demoGenerator) Connection(n field.Node) error {

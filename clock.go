@@ -2,7 +2,11 @@ package main
 
 import (
 	"log"
+	"strconv"
+	"strings"
 	"time"
+	
+	"github.com/peterbourgon/field"
 )
 
 type tickReceiver interface {
@@ -80,8 +84,28 @@ func (c *clock) unsubscribe(r tickReceiver) {
 	c.unsubscriptions <- r
 }
 
-func (c *clock) bpm(bpm float32) {
-	c.newBPM <- bpm
+func (c *clock) parse(input string) {
+	toks := strings.Split(strings.ToLower(input), " ")
+	if len(toks) <= 0 {
+		log.Printf("clock: parse empty")
+		return
+	}
+	switch toks[0] {
+	case "bpm":
+		if len(toks) != 2 {
+			log.Printf("clock: %s: bad args", input)
+			return
+		}
+		bpm, err := strconv.ParseFloat(toks[1], 32)
+		if err != nil {
+			log.Printf("clock: %s: %s", input, err)
+			return
+		}
+		c.newBPM <- float32(bpm)
+
+	default:
+		log.Printf("clock: %s: aroo", input)
+	}
 }
 
 func (c *clock) stop() {
@@ -89,6 +113,12 @@ func (c *clock) stop() {
 	c.quit <- q
 	<-q
 }
+
+func (c *clock) ID() string                  { return "clock" }
+func (c *clock) Connect(field.Node) error    { return errNo }
+func (c *clock) Connection(field.Node) error { return errNo }
+func (c *clock) Disconnect(field.Node)       {}
+func (c *clock) Disconnection(field.Node)    {}
 
 func bpm2duration(bpm float32) time.Duration {
 	return time.Duration((60.0 / bpm) * float32(time.Second))

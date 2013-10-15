@@ -23,6 +23,10 @@ type audioReceiver interface {
 	receive(audioOut <-chan []float32)
 }
 
+type stopper interface {
+	stop()
+}
+
 type mixer struct {
 	stream   *portaudio.Stream
 	gain     float32

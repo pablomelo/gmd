@@ -68,6 +68,9 @@ func (p *platform) parse(input string) {
 
 		if err := p.add(n); err != nil {
 			log.Printf("%s: %v", input, err)
+			if s, ok := n.(stopper); ok {
+				s.stop()
+			}
 			return
 		}
 		log.Printf("%s: OK, added", input)

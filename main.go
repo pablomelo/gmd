@@ -17,7 +17,7 @@ const (
 func main() {
 	log.SetFlags(log.Lshortfile)
 	var (
-		listen = flag.String("listen", ":6543", "UDP listen address")
+		listen = flag.String("listen", ":5432", "UDP listen address")
 	)
 	flag.Parse()
 

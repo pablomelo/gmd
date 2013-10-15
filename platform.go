@@ -45,12 +45,13 @@ func newPlatform() (*platform, error) {
 
 func (p *platform) stop() {
 	p.mixer.stop()
+	p.buffer.stop()
+	p.clock.stop()
 	log.Printf("platform: stopped")
 }
 
 func (p *platform) parse(input string) {
 	input = strings.TrimSpace(input)
-	log.Printf("platform: parse: %s", input)
 	toks := strings.Split(input, " ")
 	if len(toks) <= 0 {
 		return

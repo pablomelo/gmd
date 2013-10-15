@@ -84,6 +84,12 @@ func (c *clock) bpm(bpm float32) {
 	c.newBPM <- bpm
 }
 
+func (c *clock) stop() {
+	q := make(chan struct{})
+	c.quit <- q
+	<-q
+}
+
 func bpm2duration(bpm float32) time.Duration {
 	return time.Duration((60.0 / bpm) * float32(time.Second))
 }

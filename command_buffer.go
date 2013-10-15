@@ -59,6 +59,12 @@ func (b *commandBuffer) queue(modulo uint64, command string) {
 	b.requests <- queueRequest{modulo, command}
 }
 
+func (b *commandBuffer) stop() {
+	q := make(chan struct{})
+	b.quit <- q
+	<-q
+}
+
 type queueRequest struct {
 	modulo  uint64
 	command string

@@ -2,6 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -20,6 +23,17 @@ func main() {
 		listen = flag.String("listen", ":5432", "UDP listen address")
 	)
 	flag.Parse()
+
+	session := func() io.WriteCloser {
+		sessionFile := fmt.Sprintf("%s.txt", time.Now().Format("20060102-15040599"))
+		f, err := os.Create(sessionFile)
+		if err != nil {
+			log.Printf("%s: %s", sessionFile, err)
+			return nopCloser{ioutil.Discard}
+		}
+		return f
+	}()
+	defer session.Close()
 
 	p, err := newPlatform()
 	if err != nil {
@@ -42,7 +56,7 @@ func main() {
 	in := make(chan string)
 
 	go rd(in, conn, quit)
-	go wr(p, in, quit)
+	go wr(p, in, session, quit)
 
 	<-interrupt()
 }
@@ -72,11 +86,12 @@ func rd(out chan string, conn *net.UDPConn, quit chan struct{}) {
 	}
 }
 
-func wr(p *platform, in chan string, quit chan struct{}) {
+func wr(p *platform, in chan string, session io.Writer, quit chan struct{}) {
 	defer log.Printf("wr: done")
 	for {
 		select {
 		case s := <-in:
+			session.Write([]byte(fmt.Sprintf("%d %s", time.Now().UTC().UnixNano(), s)))
 			p.parse(s)
 
 		case <-quit:
@@ -92,3 +107,7 @@ func interrupt() chan error {
 	go func() { log.Printf("interrupt: %s", <-c); e <- nil }()
 	return e
 }
+
+type nopCloser struct{ io.Writer }
+
+func (c nopCloser) Close() error { return nil }

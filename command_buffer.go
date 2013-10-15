@@ -4,6 +4,10 @@ import (
 	"log"
 )
 
+// commandBuffer collects commands to be executed later. Commands are enqueued
+// with the queue method, and supply a modulo when they should be executed. The
+// commandBuffer releases the commands to the parser when an incoming tick
+// modulos 0 against the respective commands.
 type commandBuffer struct {
 	parser parser
 	buffer map[uint64][]string

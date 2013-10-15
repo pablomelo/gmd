@@ -85,11 +85,13 @@ func (c *clock) unsubscribe(r tickReceiver) {
 }
 
 func (c *clock) parse(input string) {
-	toks := strings.Split(strings.ToLower(input), " ")
+	input = strings.TrimSpace(strings.ToLower(input))
+	toks := strings.Split(input, " ")
 	if len(toks) <= 0 {
 		log.Printf("clock: parse empty")
 		return
 	}
+
 	switch toks[0] {
 	case "bpm":
 		if len(toks) != 2 {

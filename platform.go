@@ -52,7 +52,7 @@ func (p *platform) stop() {
 }
 
 func (p *platform) parse(input string) {
-	input = strings.TrimSpace(input)
+	input = strings.TrimSpace(strings.ToLower(input))
 	toks := strings.Split(input, " ")
 	if len(toks) <= 0 {
 		return

@@ -44,7 +44,7 @@ func (c *clock) loop(bpm float32) {
 	for {
 		select {
 		case <-t.C:
-			log.Printf("clock: ⦿ (%d → %d)", n, len(c.subs))
+			//log.Printf("clock: ⦿ (%d → %d)", n, len(c.subs))
 			for _, sub := range c.subs {
 				sub.tick(n)
 			}

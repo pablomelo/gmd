@@ -43,7 +43,7 @@ func (b *commandBuffer) loop(c *clock) {
 			b.buffer[req.modulo] = append(b.buffer[req.modulo], req.command)
 
 		case tick := <-b.ticks:
-			log.Printf("cmdbuf: tick %d pending %d", tick, len(b.buffer))
+			//log.Printf("cmdbuf: tick %d pending %d", tick, len(b.buffer))
 			b.buffer = fwd(b.parser, b.buffer, tick)
 
 		case q := <-b.quit:

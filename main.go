@@ -4,11 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -24,16 +24,23 @@ func main() {
 	)
 	flag.Parse()
 
-	session := func() io.WriteCloser {
+	session := func() chan string {
+		c := make(chan string)
+
 		sessionFile := fmt.Sprintf("%s.txt", time.Now().Format("20060102-15040599"))
 		f, err := os.Create(sessionFile)
 		if err != nil {
-			log.Printf("%s: %s", sessionFile, err)
-			return nopCloser{ioutil.Discard}
+			log.Fatal(err)
 		}
-		return f
+		go func() {
+			for s := range c {
+				f.Write([]byte(s + "\n"))
+			}
+			f.Close()
+		}()
+		return c
 	}()
-	defer session.Close()
+	defer close(session)
 
 	p, err := newPlatform()
 	if err != nil {
@@ -86,12 +93,13 @@ func rd(out chan string, conn *net.UDPConn, quit chan struct{}) {
 	}
 }
 
-func wr(p *platform, in chan string, session io.Writer, quit chan struct{}) {
+func wr(p *platform, in chan string, session chan string, quit chan struct{}) {
 	defer log.Printf("wr: done")
 	for {
 		select {
 		case s := <-in:
-			session.Write([]byte(fmt.Sprintf("%d %s", time.Now().UTC().UnixNano(), s)))
+			s = strings.TrimSpace(s)
+			session <- fmt.Sprintf("%d %s", time.Now().UTC().UnixNano(), s)
 			p.parse(s)
 
 		case <-quit:

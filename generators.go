@@ -9,12 +9,11 @@ import (
 	"github.com/peterbourgon/field"
 )
 
-// demoGenerator will output a sine wave at 440Hz.
 type demoGenerator struct {
 	id            string
 	keyDownEvents chan keyEvent
 	keyUpEvents   chan keyEvent
-	keysDown      intSet // hz values, integer approximations
+	keysDown      keySet // MIDI keys
 	connects      chan connectRequest
 	disconnects   chan string
 	connected     string
@@ -25,7 +24,7 @@ type demoGenerator struct {
 func newDemoGenerator(id string) *demoGenerator {
 	g := &demoGenerator{
 		id:            id,
-		keysDown:      intSet{},
+		keysDown:      keySet{},
 		keyDownEvents: make(chan keyEvent),
 		keyUpEvents:   make(chan keyEvent),
 		connects:      make(chan connectRequest),
@@ -48,21 +47,24 @@ func (g *demoGenerator) loop() {
 	log.Printf("%s: started", g.ID())
 	defer log.Printf("%s: done", g.ID())
 
-	var phase float32
 	for {
 		select {
-		case g.output <- nextBufferMany(sine, g.keysDown, &phase):
+		case g.output <- nextBufferMany(sine, g.keysDown):
 			//log.Printf("%s ♪", g.ID())
 			break
 
 		case k := <-g.keyDownEvents:
-			log.Printf("%s: press %s", g.ID(), k.hz)
-			g.keysDown.add(k.hz) // TODO velocity
+			log.Printf("%s: press %d", g.ID(), k.midi)
+			g.keysDown.add(k.midi) // TODO velocity
 			log.Printf("%s: keys down %v", g.ID(), g.keysDown)
 
 		case k := <-g.keyUpEvents:
-			log.Printf("%s: lift %s", g.ID(), k.hz)
-			g.keysDown.remove(k.hz)
+			log.Printf("%s: lift %d", g.ID(), k.midi)
+			if k.midi == 0 {
+				g.keysDown = keySet{} // reset
+			} else {
+				g.keysDown.remove(k.midi)
+			}
 			log.Printf("%s: keys down %v", g.ID(), g.keysDown)
 
 		case r := <-g.connects:
@@ -112,7 +114,7 @@ func (g *demoGenerator) parse(input string) {
 			return
 		}
 
-		hz, err := strconv.ParseFloat(toks[1], 32)
+		midi, err := strconv.ParseInt(toks[1], 10, 32)
 		if err != nil {
 			log.Printf("%s: %s: %s", g.ID(), input, err)
 			return
@@ -127,7 +129,7 @@ func (g *demoGenerator) parse(input string) {
 			}
 		}
 
-		g.keyDownEvents <- keyEvent{int(hz), float32(velocity)}
+		g.keyDownEvents <- keyEvent{int(midi), float32(velocity)}
 
 	case "keyup", "ku", "up", "u":
 		if len(toks) < 2 {
@@ -135,7 +137,7 @@ func (g *demoGenerator) parse(input string) {
 			return
 		}
 
-		hz, err := strconv.ParseFloat(toks[1], 32)
+		midi, err := strconv.ParseInt(toks[1], 10, 32)
 		if err != nil {
 			log.Printf("%s: %s: %s", g.ID(), input, err)
 			return
@@ -150,7 +152,10 @@ func (g *demoGenerator) parse(input string) {
 			}
 		}
 
-		g.keyUpEvents <- keyEvent{int(hz), float32(velocity)}
+		g.keyUpEvents <- keyEvent{int(midi), float32(velocity)}
+
+	case "reset", "release":
+		g.keyUpEvents <- keyEvent{}
 	}
 }
 
@@ -189,11 +194,11 @@ type connectRequest struct {
 }
 
 type keyEvent struct {
-	hz       int
+	midi     int     // key
 	velocity float32 // 0..1
 }
 
-type intSet map[int]struct{}
+type keySet map[int]float32 // MIDI key: phase
 
-func (s intSet) add(i int)    { s[i] = struct{}{} }
-func (s intSet) remove(i int) { delete(s, i) }
+func (s keySet) add(i int)    { s[i] = 0.0 }
+func (s keySet) remove(i int) { delete(s, i) }

@@ -65,15 +65,23 @@ func nextBuffer(f generatorFunction, hz float32, phase *float32) []float32 {
 	return buf
 }
 
-func nextBufferMany(f generatorFunction, hzs intSet, phase *float32) []float32 {
+func nextBufferMany(f generatorFunction, keys keySet) []float32 {
 	buf := make([]float32, bufSz)
-	phaseCopy := *phase
-	for hz := range hzs {
-		phaseCopy = *phase
+	for midi, phase := range keys {
 		for i := 0; i < bufSz; i++ {
-			buf[i] += nextGeneratorFunctionValue(f, float32(hz), &phaseCopy)
+			buf[i] += nextGeneratorFunctionValue(f, midi2hz(midi), &phase)
 		}
+		keys[midi] = phase
 	}
-	*phase = phaseCopy
 	return buf
+}
+
+func midi2hz(midi int) float32 {
+	if midi < 20 {
+		midi = 20
+	}
+	if midi > 108 {
+		midi = 108
+	}
+	return float32((440.0 / 32) * math.Pow(2.0, (float64(midi)-9.0)/12.0))
 }
